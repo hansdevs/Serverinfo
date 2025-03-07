@@ -1,65 +1,41 @@
 @echo off
 
-REM ---------------------------------------------------
-REM log-system-health.bat
-REM Logs basic system info, attempts CPU temp, 
-REM commits & pushes to GitHub.
-REM ---------------------------------------------------
+REM -----------------------------------------------------------------
+REM log-system-health.bat (No WMIC, No CPU temp)
+REM 1) Uses systeminfo to get OS/Manufacturer/Model
+REM 2) Creates a date-stamped file
+REM 3) Commits & pushes to GitHub
+REM -----------------------------------------------------------------
 
-:: 1) Go to the local repo folder
+:: 1) Go to your cloned Git repo folder on E:
 cd /d E:\Serverinfo
 
 :: 2) Create a safe date string from %DATE%.
-::    Typical %DATE% might be: "Fri 03/10/2025" 
-::    We'll replace / with -, and space with -
+::    Example %DATE% = "Thu 03/09/2025"
+::    We replace slashes "/" with "-", and space " " with "-"
 set safeDate=%DATE:/=-%
 set safeDate=%safeDate: =-%
 
 :: 3) Construct a date-stamped filename
-set LOGFILE=system_health_%safeDate%.txt
+set LOGFILE=serverinfo_%safeDate%.txt
 
-:: 4) Gather OS, manufacturer, model (N/A if WMIC fails)
-set OS_NAME=N/A
-for /f "tokens=1,* delims==" %%A in ('wmic os get Caption /value 2^>nul') do (
-  if "%%A"=="Caption" set OS_NAME=%%B
-)
+:: 4) Write some info to the file
+echo System Info logged on %DATE% %TIME% > "%LOGFILE%"
+echo. >> "%LOGFILE%"
 
-set MANUFACTURER=N/A
-for /f "tokens=1,* delims==" %%A in ('wmic computersystem get Manufacturer /value 2^>nul') do (
-  if "%%A"=="Manufacturer" set MANUFACTURER=%%B
-)
+:: Pull OS/Manufacturer/Model lines from systeminfo
+:: (Adjust if your systeminfo is localized in another language.)
+systeminfo | findstr /I "OS Name" >> "%LOGFILE%"
+systeminfo | findstr /I "System Manufacturer" >> "%LOGFILE%"
+systeminfo | findstr /I "System Model" >> "%LOGFILE%"
 
-set MODEL=N/A
-for /f "tokens=1,* delims==" %%A in ('wmic computersystem get Model /value 2^>nul') do (
-  if "%%A"=="Model" set MODEL=%%B
-)
+echo. >> "%LOGFILE%"
+echo CPU Temperature is omitted here because WMIC is broken. >> "%LOGFILE%"
 
-:: 5) Attempt CPU temp (Celsius). Many systems won't expose this via WMI -> "N/A"
-set CPU_TEMP=N/A
-for /f "tokens=1 skip=1 delims=" %%A in ('wmic /namespace:\\root\wmi PATH MSAcpi_ThermalZoneTemperature get CurrentTemperature 2^>nul') do (
-  if NOT "%%A"=="" (
-    set /a rawKelvin=%%A 2>nul
-    if "%ERRORLEVEL%"=="0" (
-      set /a tempKelvin=%rawKelvin% / 10
-      set /a tempCelsius=%tempKelvin% - 273
-      set CPU_TEMP=%tempCelsius%
-    )
-  )
-)
-
-:: 6) Write all info to the daily file
-(
-  echo Date/Time: %DATE% %TIME%
-  echo OS Name: %OS_NAME%
-  echo Manufacturer: %MANUFACTURER%
-  echo Model: %MODEL%
-  echo CPU Temp (C): %CPU_TEMP%
-) > "%LOGFILE%"
-
-:: 7) Commit & push
+:: 5) Commit & push to GitHub
 git add -A
-git commit -m "Automated system info on %DATE% %TIME%"
+git commit -m "Auto log: %DATE% %TIME%"
 git push origin main
 
-:: 8) Pause for debugging; remove if you want no console pop-up
+:: 6) Pause so you can see errors (remove if you want no console)
 pause
